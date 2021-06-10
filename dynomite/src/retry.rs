@@ -81,6 +81,8 @@ where
         }
         match error {
             RusotoError::Service(e) => e.retryable(),
+            // Retry spurious HTTP errors.
+            RusotoError::HttpDispatch(_) => true,
             _ => false,
         }
     }
