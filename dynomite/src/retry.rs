@@ -83,6 +83,22 @@ where
             RusotoError::Service(e) => e.retryable(),
             // Retry spurious HTTP errors.
             RusotoError::HttpDispatch(_) => true,
+            RusotoError::Unknown(http_response) => {
+                // We've seen errors in production that have a response body like:
+                //
+                // {\"__type\":\"com.amazon.coral.availability#ThrottlingException\",\"message\":\"Throughput
+                // exceeds the current capacity of your table or index. DynamoDB is
+                // automatically scaling your table or index so please try again shortly.
+                // If exceptions persist, check if you have a hot key:
+                // https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html\"}"
+                //
+                // This seems like something we should retry. To match this error, we could parse the body as
+                // json and look for the "__type" key and get the exception type by splitting on the '#'.
+                //
+                // Or we could also just look for the string "ThrottlingException", which makes minimal changes
+                // on this fork.
+                return http_response.body_as_str().contains("ThrottlingException");
+            },
             _ => false,
         }
     }
