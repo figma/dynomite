@@ -84,6 +84,14 @@ where
             // Retry spurious HTTP errors.
             RusotoError::HttpDispatch(_) => true,
             RusotoError::Unknown(http_response) => {
+                // We also want to retry if DynamoDB encounters internal
+                // server errors, etc. We've seen this in production where
+                // we get errors like:
+                // Unknown(BufferedHttpResponse {status: 503, body: "{ \"message\": \"Service Unavailable\" }", headers: {"server": "Server", "date": "Fri, 25 Jun 2021 18:04:56 GMT", "content-type": "application/x-amz-json-1.0", "content-length": "36", "connection": "close"} })
+                if http_response.status.is_server_error() {
+                    return true;
+                }
+
                 // We've seen errors in production that have a response body like:
                 //
                 // {\"__type\":\"com.amazon.coral.availability#ThrottlingException\",\"message\":\"Throughput
