@@ -154,27 +154,35 @@ where
                 move |state| {
                     let clone = self.clone();
                     async move {
-                        let (exclusive_start_key, input) = match state {
+                        let (exclusive_start_key, mut input) = match state {
                             PageState::Next(start, input) => (start, input),
                             PageState::End => {
                                 return Ok(None) as Result<_, RusotoError<QueryError>>
                             }
                         };
+                        if let Some(limit) = input.limit {
+                            if limit < 1 {
+                                return Ok(None) as Result<_, RusotoError<QueryError>>;
+                            }
+                        }
                         let resp = clone
                             .query(QueryInput {
                                 exclusive_start_key,
                                 ..input.clone()
                             })
                             .await?;
+                        let items = resp.items.unwrap_or_default().into_iter().map(Ok);
                         let next_state =
                             match resp.last_evaluated_key.filter(|next| !next.is_empty()) {
-                                Some(next) => PageState::Next(Some(next), input),
+                                Some(next) => {
+                                    if let Some(limit) = &mut input.limit {
+                                        *limit -= items.len() as i64;
+                                    }
+                                    PageState::Next(Some(next), input)
+                                }
                                 _ => PageState::End,
                             };
-                        Ok(Some((
-                            stream::iter(resp.items.unwrap_or_default().into_iter().map(Ok)),
-                            next_state,
-                        )))
+                        Ok(Some((stream::iter(items), next_state)))
                     }
                 },
             )
