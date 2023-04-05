@@ -160,6 +160,11 @@ where
                                 return Ok(None) as Result<_, RusotoError<QueryError>>
                             }
                         };
+                        if let Some(limit) = input.limit {
+                            if limit < 1 {
+                                return Ok(None) as Result<_, RusotoError<QueryError>>;
+                            }
+                        }
                         let resp = clone
                             .query(QueryInput {
                                 exclusive_start_key,
